@@ -1,0 +1,138 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'spring-benchmark/**'
+
+defaults:
+  run:
+    working-directory: spring-benchmark
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install wrk
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wrk
+
+      - name: Build and start services
+        run: docker compose up -d --build
+
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for postgres..."
+          for i in $(seq 1 30); do
+            if docker compose exec -T postgres pg_isready -U postgres > /dev/null 2>&1; then
+              echo "Postgres is ready"
+              break
+            fi
+            sleep 2
+          done
+
+          echo "Waiting for java-demo..."
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:80/ > /dev/null 2>&1; then
+              echo "Java demo is ready"
+              break
+            fi
+            sleep 2
+          done
+
+          echo "Waiting for rust-demo..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:88/ > /dev/null 2>&1; then
+              echo "Rust demo is ready"
+              break
+            fi
+            sleep 2
+          done
+
+          # warmup
+          echo "Warming up..."
+          wrk -t2 -c50 -d5s http://localhost:80/ > /dev/null 2>&1
+          wrk -t2 -c50 -d5s http://localhost:88/ > /dev/null 2>&1
+          wrk -t2 -c50 -d5s http://localhost:80/postgres > /dev/null 2>&1
+          wrk -t2 -c50 -d5s http://localhost:88/postgres > /dev/null 2>&1
+
+      - name: Run benchmarks
+        run: |
+          mkdir -p result
+
+          THREADS=(1 2)
+          CONNECTIONS=(50 100 200)
+          DURATION=30
+
+          run_bench() {
+            local name=$1
+            local url=$2
+            local dir="result/${name}"
+            mkdir -p "${dir}"
+
+            echo "========== Benchmark: ${name} =========="
+            for t in "${THREADS[@]}"; do
+              for c in "${CONNECTIONS[@]}"; do
+                echo "--- threads=${t}, connections=${c}, duration=${DURATION}s ---"
+                wrk -t"${t}" -c"${c}" -d"${DURATION}s" "${url}" | tee "${dir}/t${t}_c${c}.txt"
+                echo ""
+              done
+            done
+          }
+
+          run_bench "spring-boot-raw" "http://localhost:80/"
+          run_bench "summer-rs-raw" "http://localhost:88/"
+          run_bench "spring-boot-pg" "http://localhost:80/postgres"
+          run_bench "summer-rs-pg" "http://localhost:88/postgres"
+
+      - name: Collect resource usage
+        if: always()
+        run: |
+          echo "=== Docker Stats ===" | tee result/docker-stats.txt
+          docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}" | tee -a result/docker-stats.txt
+          echo ""
+          echo "=== Docker Images ===" | tee -a result/docker-stats.txt
+          docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | grep -E "holmofy|postgres" | tee -a result/docker-stats.txt
+
+      - name: Generate summary
+        if: always()
+        run: |
+          echo "## Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Runner: $(nproc) vCPU, $(free -h | awk '/Mem:/{print $2}') RAM" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          for dir in result/*/; do
+            name=$(basename "$dir")
+            echo "### ${name}" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            for f in "${dir}"*.txt; do
+              echo "--- $(basename $f .txt) ---" >> $GITHUB_STEP_SUMMARY
+              grep -E "Requests/sec|Latency|Transfer/sec" "$f" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            done
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          done
+
+          echo "### Resource Usage" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat result/docker-stats.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: spring-benchmark/result/
+
+      - name: Stop services
+        if: always()
+        run: docker compose down
