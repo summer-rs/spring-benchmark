@@ -1,16 +1,16 @@
 ## build target
 
-| case                 | version            | target                          | size          |
-|----------------------|--------------------|---------------------------------|---------------|
-| **java-springboot**  | spring-boot v3.3.3 | spring-0.0.1-SNAPSHOT.jar       | 22.25MB       |
-| **rust-spring-rs**   | spring-rs v0.3.0   | spring-rs(release binary)       | 11.17MB       |
+| case                 | version             | target                          | size          |
+|----------------------|---------------------|---------------------------------|---------------|
+| **java-springboot**  | spring-boot v3.5.12 | spring-0.0.1-SNAPSHOT.jar       | 22.25MB       |
+| **rust-summer-rs**   | summer-rs v0.5.0    | summer-rs(release binary)       | 11.17MB       |
 
 ## docker image
 
-| case                                                  | BaseImage                       | ImageSize      |
-|-------------------------------------------------------|---------------------------------|----------------|
-| [**java-springboot**](./java-spring-boot/Dockerfile)  | openjdk:17-jdk-slim(407.74 MB)  | 429.99MB       |
-| [**rust-spring-rs**](./spring-rs/Dockerfile)          | debian:bookworm-slim(74.77 MB)  | 124.55MB       |
+| case                                                  | BaseImage                              | ImageSize      |
+|-------------------------------------------------------|----------------------------------------|----------------|
+| [**java-springboot**](./java-spring-boot/Dockerfile)  | eclipse-temurin:21-jre                 | 429.99MB       |
+| [**rust-summer-rs**](./spring-rs/Dockerfile)          | debian:bookworm-slim(74.77 MB)         | 124.55MB       |
 
 ## benchmark summary
 
@@ -21,9 +21,9 @@
 | case                                                                          | QPS      | CPU  | Memory  |
 |-------------------------------------------------------------------------------|----------|------|---------|
 | [**java-springboot-raw-query**](./java-spring-boot/README.md#raw-query)       | 26380.60 | 350% | 234.6MB |
-| [**rust-spring-rs-raw-query**](./spring-rs/README.md#raw-query)               | 40143.45 | 150% | 21.2MB  |
+| [**rust-summer-rs-raw-query**](./spring-rs/README.md#raw-query)               | 40143.45 | 150% | 21.2MB  |
 | [**java-springboot-jdbc-query**](./java-spring-boot/README.md#postgres-query) | 9679.59  | 416% | 268.1MB |
-| [**rust-spring-rs-sqlx-query**](./spring-rs/README.md#postgres-query)         | 9250.40  | 317% | 29.47MB |
+| [**rust-summer-rs-sqlx-query**](./spring-rs/README.md#postgres-query)         | 9250.40  | 317% | 29.47MB |
 
 > **NOTE**: It is recommended to use the postgresql database as the sqlx backend, because the mysql backend performance of sqlx is very poor.
 > The [mysql-benchmark](https://github.com/spring-rs/spring-benchmark/tree/mysql-benchmark) branch has a stress test report.

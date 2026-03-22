@@ -1,10 +1,10 @@
 use anyhow::Context;
-use spring::{auto_config, App};
-use spring_sqlx::sqlx::Row;
-use spring_sqlx::ConnectPool;
-use spring_sqlx::{sqlx, SqlxPlugin};
-use spring_web::get;
-use spring_web::{
+use summer::{auto_config, App};
+use summer_sqlx::sqlx::Row;
+use summer_sqlx::ConnectPool;
+use summer_sqlx::{sqlx, SqlxPlugin};
+use summer_web::get;
+use summer_web::{
     axum::response::IntoResponse, error::Result, extractor::Component, WebConfigurator, WebPlugin,
 };
 
